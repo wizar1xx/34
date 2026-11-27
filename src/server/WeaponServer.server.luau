@@ -1,3 +1,4 @@
+
 local fireEvent = game.ReplicatedStorage:WaitForChild("WeaponFireEvent")
 local hitmarkerEvent = game.ReplicatedStorage:WaitForChild("HitmarkerEvent")
 local players = game:GetService("Players")
