@@ -37,14 +37,14 @@ local function saveAllData(player)
 		Capacity = stats.Capacity.Value,
 		SpeedLevel = stats.SpeedLevel.Value,
 		BuiltCount = stats.BuiltCount.Value,
-		TotalCrystalsMined = stats.TotalCrystalsMined.Value
+		TotalCrystalsMined = stats.TotalCrystalsMined.Value,
+		TutorialDone = player:GetAttribute("TutorialDone") == true
 	}
 
 	pcall(function()
 		playerStore:SetAsync("User_" .. player.UserId, dataToSave)
 	end)
 
-	-- Записываем в Мировой Топ только реальных игроков (без тестовых ботов Studio)
 	if leaderstats.Fame.Value > 0 and player.UserId > 0 then
 		pcall(function()
 			globalFameStore:SetAsync(tostring(player.UserId), leaderstats.Fame.Value)
@@ -105,6 +105,7 @@ players.PlayerAdded:Connect(function(player)
 		return playerStore:GetAsync("User_" .. player.UserId)
 	end)
 
+	local tutDone = false
 	if success and data then
 		crystals.Value = data.Crystals or 0
 		rebirths.Value = data.Rebirths or 0
@@ -113,7 +114,11 @@ players.PlayerAdded:Connect(function(player)
 		speedLevel.Value = data.SpeedLevel or 1
 		builtCount.Value = data.BuiltCount or 0
 		totalMined.Value = data.TotalCrystalsMined or 0
+		tutDone = data.TutorialDone or (builtCount.Value > 0) or (rebirths.Value > 0)
 	end
+
+	-- Передаём статус туториала клиенту
+	player:SetAttribute("TutorialDone", tutDone)
 
 	recalculateFame(player)
 
@@ -121,8 +126,17 @@ players.PlayerAdded:Connect(function(player)
 		applyCharacterStats(player, player.Character)
 	end
 
-	rebirths.Changed:Connect(function() recalculateFame(player) end)
-	builtCount.Changed:Connect(function() recalculateFame(player) end)
+	rebirths.Changed:Connect(function()
+		recalculateFame(player)
+		if rebirths.Value > 0 then player:SetAttribute("TutorialDone", true) end
+	end)
+
+	builtCount.Changed:Connect(function()
+		recalculateFame(player)
+		-- Как только игрок построил первую постройку — туториал пройден навсегда!
+		if builtCount.Value > 0 then player:SetAttribute("TutorialDone", true) end
+	end)
+
 	totalMined.Changed:Connect(function() recalculateFame(player) end)
 
 	speedLevel.Changed:Connect(function()
@@ -138,7 +152,6 @@ end)
 
 players.PlayerRemoving:Connect(saveAllData)
 
--- Живое обновление Мирового Топа каждые 30 секунд прямо в игре
 task.spawn(function()
 	while task.wait(30) do
 		for _, player in ipairs(players:GetPlayers()) do
@@ -152,3 +165,10 @@ game:BindToClose(function()
 		saveAllData(player)
 	end
 end)
+local repStorage = game:GetService("ReplicatedStorage")
+local skipEvent = repStorage:WaitForChild("SkipTutorialEvent")
+
+skipEvent.OnServerEvent:Connect(function(player)
+	player:SetAttribute("TutorialDone", true)
+end)
+
