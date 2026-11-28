@@ -1,5 +1,8 @@
 local players = game:GetService("Players")
 local repStorage = game:GetService("ReplicatedStorage")
+local SoundManager = require(repStorage:WaitForChild("Shared"):WaitForChild("SoundManager"))
+
+local repStorage = game:GetService("ReplicatedStorage")
 local crystalZone = workspace:WaitForChild("CrystalZone")
 
 local maxCrystals = 15 -- Сколько кристаллов одновременно на карте
