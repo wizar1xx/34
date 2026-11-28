@@ -4,7 +4,7 @@ local adminEvent = repStorage:WaitForChild("AdminEvent")
 
 -- ВПИШИ СЮДА СВОЙ USERID И USERID ДРУГА:
 local ADMINS = {
-	[123456789] = true, -- Замени на свой UserId!
+	[8284210867] = true, -- Замени на свой UserId!
 	[987654321] = true  -- Замени на UserId друга!
 }
 
