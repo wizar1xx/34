@@ -3,7 +3,12 @@ local repStorage = game:GetService("ReplicatedStorage")
 local player = players.LocalPlayer
 local adminEvent = repStorage:WaitForChild("AdminEvent")
 
-task.wait(1.5)
+-- Надёжно ждём атрибут IsAdmin до 10 секунд
+local waited = 0
+while not player:GetAttribute("IsAdmin") and waited < 10 do
+	task.wait(0.5)
+	waited += 0.5
+end
 if not player:GetAttribute("IsAdmin") then return end
 
 local screenGui = Instance.new("ScreenGui")
@@ -20,7 +25,9 @@ openBtn.Font = Enum.Font.GothamBlack
 openBtn.TextSize = 17
 openBtn.Text = "🛡️ АДМИН"
 openBtn.Parent = screenGui
-Instance.new("UICorner", openBtn).CornerRadius = UDim.new(0, 12)
+local c1 = Instance.new("UICorner")
+c1.CornerRadius = UDim.new(0, 12)
+c1.Parent = openBtn
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 380, 0, 380)
@@ -28,7 +35,9 @@ mainFrame.Position = UDim2.new(0.5, -190, 0.5, -190)
 mainFrame.BackgroundColor3 = Color3.fromRGB(26, 22, 34)
 mainFrame.Visible = false
 mainFrame.Parent = screenGui
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 16)
+local c2 = Instance.new("UICorner")
+c2.CornerRadius = UDim.new(0, 16)
+c2.Parent = mainFrame
 
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -50, 0, 40)
@@ -47,9 +56,12 @@ closeBtn.Position = UDim2.new(1, -42, 0, 8)
 closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
 closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 18
 closeBtn.Text = "X"
 closeBtn.Parent = mainFrame
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
+local c3 = Instance.new("UICorner")
+c3.CornerRadius = UDim.new(0, 8)
+c3.Parent = closeBtn
 
 local targetBox = Instance.new("TextBox")
 targetBox.Size = UDim2.new(1, -30, 0, 38)
@@ -61,14 +73,16 @@ targetBox.Text = ""
 targetBox.Font = Enum.Font.Gotham
 targetBox.TextSize = 14
 targetBox.Parent = mainFrame
-Instance.new("UICorner", targetBox).CornerRadius = UDim.new(0, 8)
+local c4 = Instance.new("UICorner")
+c4.CornerRadius = UDim.new(0, 8)
+c4.Parent = targetBox
 
--- Прокручиваемый список команд
 local scroll = Instance.new("ScrollingFrame")
 scroll.Size = UDim2.new(1, -30, 1, -105)
 scroll.Position = UDim2.new(0, 15, 0, 96)
 scroll.BackgroundTransparency = 1
-scroll.CanvasSize = UDim2.new(0, 0, 0, 580)
+scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 scroll.ScrollBarThickness = 6
 scroll.Parent = mainFrame
 
@@ -85,7 +99,9 @@ local function addCmd(text, color, action, extra)
 	btn.TextSize = 14
 	btn.Text = text
 	btn.Parent = scroll
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, 8)
+	c.Parent = btn
 
 	btn.MouseButton1Click:Connect(function()
 		adminEvent:FireServer(action, targetBox.Text, extra)
