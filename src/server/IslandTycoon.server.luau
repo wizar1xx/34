@@ -1,7 +1,4 @@
 local players = game:GetService("Players")
-local repStorage = game:GetService("ReplicatedStorage")
-
-local SoundManager = require(repStorage:WaitForChild("Shared"):WaitForChild("SoundManager"))
 
 local buildingsFolder = workspace:WaitForChild("IslandBuildings")
 local buttonsFolder = workspace:WaitForChild("BuildButtons")
@@ -11,6 +8,7 @@ local speedPad = workspace:WaitForChild("UpgradeSpeedPad")
 
 local debounce = {}
 
+-- Функция создания красивой 3D-таблички над любой плитой
 local function setPadLabel(part, text, color)
 	local gui = part:FindFirstChildOfClass("BillboardGui") or Instance.new("BillboardGui")
 	gui.Size = UDim2.new(0, 200, 0, 50)
@@ -30,10 +28,10 @@ local function setPadLabel(part, text, color)
 end
 
 setPadLabel(rebirthPad, "REBIRTH (100+ Кристаллов)", Color3.fromRGB(255, 215, 0))
-setPadLabel(powerPad, "СИЛА УДАРА (15 Кристаллов)", Color3.fromRGB(255, 100, 100))
-setPadLabel(speedPad, "СКОРОСТЬ (15 Кристаллов)", Color3.fromRGB(100, 220, 255))
+setPadLabel(powerPad, "СИЛА УДАРА (+15 Кристаллов)", Color3.fromRGB(255, 100, 100))
+setPadLabel(speedPad, "СКОРОСТЬ (+15 Кристаллов)", Color3.fromRGB(100, 220, 255))
 
--- 1. Строительство зданий за кристаллы
+-- 1. Строительство зданий за кристаллы (+25 Fame за каждое здание)
 for _, btn in ipairs(buttonsFolder:GetChildren()) do
 	if btn:IsA("BasePart") then
 		local targetVal = btn:FindFirstChild("Target")
@@ -63,10 +61,6 @@ for _, btn in ipairs(buttonsFolder:GetChildren()) do
 					btn:FindFirstChildOfClass("BillboardGui").Enabled = false
 				end
 				stats.BuiltCount.Value += 1
-
-				-- Проигрываем звук постройки!
-				SoundManager.Play("BuyUpgrade", building)
-
 				task.wait(0.5)
 				debounce[player] = nil
 			end
@@ -90,10 +84,6 @@ powerPad.Touched:Connect(function(hit)
 		leaderstats.Crystals.Value -= cost
 		stats.ToolPower.Value += 1
 		setPadLabel(powerPad, "СИЛА УДАРА (" .. (15 * stats.ToolPower.Value) .. " Кристаллов)", Color3.fromRGB(255, 100, 100))
-
-		-- Звук покупки апгрейда
-		SoundManager.Play("BuyUpgrade", powerPad)
-
 		task.wait(0.6)
 		debounce[player] = nil
 	end
@@ -115,16 +105,12 @@ speedPad.Touched:Connect(function(hit)
 		leaderstats.Crystals.Value -= cost
 		stats.SpeedLevel.Value += 1
 		setPadLabel(speedPad, "СКОРОСТЬ (" .. (15 * stats.SpeedLevel.Value) .. " Кристаллов)", Color3.fromRGB(100, 220, 255))
-
-		-- Звук покупки апгрейда
-		SoundManager.Play("BuyUpgrade", speedPad)
-
 		task.wait(0.6)
 		debounce[player] = nil
 	end
 end)
 
--- 4. Перерождение (Rebirth): СБРАСЫВАЕМ силу, скорость и кристаллы!
+-- 4. Перерождение (Rebirth)
 rebirthPad.Touched:Connect(function(hit)
 	local char = hit:FindFirstAncestorOfClass("Model")
 	local player = players:GetPlayerFromCharacter(char)
@@ -137,24 +123,11 @@ rebirthPad.Touched:Connect(function(hit)
 	local rebirthCost = 100 * (leaderstats.Rebirths.Value + 1)
 	if leaderstats.Crystals.Value >= rebirthCost then
 		debounce[player] = true
-
-		-- Сбрасываем кристаллы, силу и скорость на начальный 1-й уровень!
 		leaderstats.Crystals.Value = 0
-		stats.ToolPower.Value = 1
-		stats.SpeedLevel.Value = 1 -- PlayerData автоматически вернёт скорость персонажа на 16!
-
-		-- Начисляем +1 Rebirth (+1000 Fame и постоянный множитель кристаллов!)
 		leaderstats.Rebirths.Value += 1
-
-		-- Обновляем ценники на всех трёх плитах
-		setPadLabel(powerPad, "СИЛА УДАРА (15 Кристаллов)", Color3.fromRGB(255, 100, 100))
-		setPadLabel(speedPad, "СКОРОСТЬ (15 Кристаллов)", Color3.fromRGB(100, 220, 255))
+		stats.ToolPower.Value += 1
 		setPadLabel(rebirthPad, "REBIRTH (" .. (100 * (leaderstats.Rebirths.Value + 1)) .. " Кристаллов)", Color3.fromRGB(255, 215, 0))
 
-		-- Эпичный звук перерождения!
-		SoundManager.Play("Rebirth", rebirthPad)
-
-		-- Сбрасываем постройки острова для нового цикла
 		for _, b in ipairs(buildingsFolder:GetChildren()) do
 			if b:IsA("BasePart") then b.Transparency = 1; b.CanCollide = false end
 		end
