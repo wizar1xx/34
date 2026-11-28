@@ -1,9 +1,12 @@
 local players = game:GetService("Players")
-local debris = game:GetService("Debris")
+local repStorage = game:GetService("ReplicatedStorage")
 local crystalZone = workspace:WaitForChild("CrystalZone")
 
 local maxCrystals = 15 -- Сколько кристаллов одновременно на карте
 local activeCrystals = 0
+local activeCrystalData = {}
+local lastHitAt = {}
+local mineEvent = repStorage:WaitForChild("MineCrystalEvent")
 
 -- Типы кристаллов: цвет, здоровье и награда
 local crystalTypes = {
@@ -11,6 +14,69 @@ local crystalTypes = {
 	{Name = "Золотой Кристалл", Color = Color3.fromRGB(255, 200, 0), HP = 6, Reward = 3},
 	{Name = "Радужный Метеорит", Color = Color3.fromRGB(255, 50, 200), HP = 12, Reward = 10}
 }
+
+local function applyHit(player, crystal)
+	local data = activeCrystalData[crystal]
+	if not data then return end
+
+	local character = player.Character
+	local pickaxe = character and character:FindFirstChild("Кирка")
+	if not pickaxe or not pickaxe:IsA("Tool") then
+		data.FeedbackLabel.Text = "Сначала возьми кирку"
+		return
+	end
+
+	local clickDetector = crystal:FindFirstChildOfClass("ClickDetector")
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not clickDetector or not root then return end
+	if (root.Position - crystal.Position).Magnitude > clickDetector.MaxActivationDistance then return end
+
+	local now = os.clock()
+	if lastHitAt[player] and now - lastHitAt[player] < 0.42 then return end
+
+	local leaderstats = player:FindFirstChild("leaderstats")
+	local stats = player:FindFirstChild("Stats")
+	local toolPower = stats and stats:FindFirstChild("ToolPower")
+	local crystals = leaderstats and leaderstats:FindFirstChild("Crystals")
+	local rebirths = leaderstats and leaderstats:FindFirstChild("Rebirths")
+	local totalMined = stats and stats:FindFirstChild("TotalCrystalsMined")
+	if not toolPower or not crystals or not rebirths or not totalMined then
+		data.FeedbackLabel.Text = "Ошибка: статы не загружены"
+		warn("Cannot mine crystal: player stats are missing for " .. player.Name)
+		return
+	end
+
+	lastHitAt[player] = now
+
+	local power = math.max(1, toolPower.Value)
+	data.HP -= power
+	mineEvent:FireClient(player, "Hit")
+	data.FeedbackLabel.Text = "Урон -" .. power .. " • HP " .. math.max(data.HP, 0) .. "/" .. data.Type.HP
+	crystal.Size = crystal.Size * 0.9
+
+	if data.HP <= 0 then
+		local rebirthMult = 1 + rebirths.Value
+		local gain = data.Type.Reward * rebirthMult
+		if player:GetAttribute("Has2x") then gain *= 2 end
+
+		crystals.Value += gain
+		totalMined.Value += gain
+
+		activeCrystals -= 1
+		activeCrystalData[crystal] = nil
+		crystal:Destroy()
+	end
+end
+
+mineEvent.OnServerEvent:Connect(function(player, crystal)
+	if typeof(crystal) == "Instance" and crystal:IsA("BasePart") then
+		applyHit(player, crystal)
+	end
+end)
+
+players.PlayerRemoving:Connect(function(player)
+	lastHitAt[player] = nil
+end)
 
 local function spawnCrystal()
 	if activeCrystals >= maxCrystals then return end
@@ -42,36 +108,43 @@ local function spawnCrystal()
 	crystal.CanCollide = true
 	crystal.Parent = workspace
 
-	local currentHP = cType.HP
-
 	-- Клик мышкой или тап на телефоне по кристаллу
 	local clickDetector = Instance.new("ClickDetector")
 	clickDetector.MaxActivationDistance = 18
 	clickDetector.Parent = crystal
 
+	local feedbackGui = Instance.new("BillboardGui")
+	feedbackGui.Size = UDim2.fromOffset(170, 34)
+	feedbackGui.StudsOffset = Vector3.new(0, 3, 0)
+	feedbackGui.MaxDistance = clickDetector.MaxActivationDistance
+	feedbackGui.AlwaysOnTop = true
+	feedbackGui.Parent = crystal
+
+	local feedbackLabel = Instance.new("TextLabel")
+	feedbackLabel.Size = UDim2.fromScale(1, 1)
+	feedbackLabel.BackgroundColor3 = Color3.fromRGB(20, 25, 38)
+	feedbackLabel.BackgroundTransparency = 0.15
+	feedbackLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	feedbackLabel.TextStrokeTransparency = 0.5
+	feedbackLabel.Font = Enum.Font.GothamBold
+	feedbackLabel.TextScaled = true
+	feedbackLabel.Text = "КЛИК / ТАП • HP " .. cType.HP .. "/" .. cType.HP
+	feedbackLabel.Parent = feedbackGui
+
+	local feedbackCorner = Instance.new("UICorner")
+	feedbackCorner.CornerRadius = UDim.new(0, 8)
+	feedbackCorner.Parent = feedbackLabel
+
+	activeCrystalData[crystal] = {
+		HP = cType.HP,
+		Type = cType,
+		FeedbackLabel = feedbackLabel,
+	}
+
 	clickDetector.MouseClick:Connect(function(player)
-		local leaderstats = player:FindFirstChild("leaderstats")
-		local stats = player:FindFirstChild("Stats")
-		if not leaderstats or not stats then return end
-
-		local power = stats.ToolPower.Value
-		currentHP -= power
-
-		-- Визуальный отклик при ударе
-		crystal.Size = crystal.Size * 0.9
-
-		if currentHP <= 0 then
-			-- Вычисляем добычу с учетом перерождений (Rebirths)
-			local rebirthMult = 1 + leaderstats.Rebirths.Value
-			local gain = cType.Reward * rebirthMult
-            if player:GetAttribute("Has2x") then gain *= 2 end
-
-
-			leaderstats.Crystals.Value += gain
-			stats.TotalCrystalsMined.Value += gain
-
-			activeCrystals -= 1
-			crystal:Destroy()
+		local character = player.Character
+		if not character or not character:FindFirstChild("Кирка") then
+			applyHit(player, crystal)
 		end
 	end)
 end

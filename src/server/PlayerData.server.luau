@@ -1,8 +1,21 @@
 local players = game:GetService("Players")
 local dataStoreService = game:GetService("DataStoreService")
 
-local playerStore = dataStoreService:GetDataStore("IslandEmpire_Player_v2")
-local globalFameStore = dataStoreService:GetOrderedDataStore("IslandEmpire_GlobalFame_v2")
+local playerStoreAvailable, playerStore = pcall(function()
+	return dataStoreService:GetDataStore("IslandEmpire_Player_v2")
+end)
+if not playerStoreAvailable then
+	warn("Player data persistence is unavailable: " .. tostring(playerStore))
+	playerStore = nil
+end
+
+local fameStoreAvailable, globalFameStore = pcall(function()
+	return dataStoreService:GetOrderedDataStore("IslandEmpire_GlobalFame_v2")
+end)
+if not fameStoreAvailable then
+	warn("Global fame persistence is unavailable: " .. tostring(globalFameStore))
+	globalFameStore = nil
+end
 
 local function recalculateFame(player)
 	local leaderstats = player:FindFirstChild("leaderstats")
@@ -41,18 +54,31 @@ local function saveAllData(player)
 		TutorialDone = player:GetAttribute("TutorialDone") == true
 	}
 
-	pcall(function()
-		playerStore:SetAsync("User_" .. player.UserId, dataToSave)
-	end)
+	if playerStore then
+		local success, err = pcall(function()
+			playerStore:SetAsync("User_" .. player.UserId, dataToSave)
+		end)
+		if not success then
+			warn("Failed to save player data for " .. player.Name .. ": " .. tostring(err))
+		end
+	end
 
-	if leaderstats.Fame.Value > 0 and player.UserId > 0 then
-		pcall(function()
+	if globalFameStore and leaderstats.Fame.Value > 0 and player.UserId > 0 then
+		local success, err = pcall(function()
 			globalFameStore:SetAsync(tostring(player.UserId), leaderstats.Fame.Value)
 		end)
+		if not success then
+			warn("Failed to save global fame for " .. player.Name .. ": " .. tostring(err))
+		end
 	end
 end
 
-players.PlayerAdded:Connect(function(player)
+local initializedPlayers = {}
+
+local function initializePlayer(player)
+	if initializedPlayers[player] then return end
+	initializedPlayers[player] = true
+
 	local leaderstats = Instance.new("Folder")
 	leaderstats.Name = "leaderstats"
 	leaderstats.Parent = player
@@ -101,12 +127,20 @@ players.PlayerAdded:Connect(function(player)
 	totalMined.Value = 0
 	totalMined.Parent = stats
 
-	local success, data = pcall(function()
-		return playerStore:GetAsync("User_" .. player.UserId)
-	end)
+	local data
+	if playerStore then
+		local success, result = pcall(function()
+			return playerStore:GetAsync("User_" .. player.UserId)
+		end)
+		if success then
+			data = result
+		else
+			warn("Failed to load player data for " .. player.Name .. ": " .. tostring(result))
+		end
+	end
 
 	local tutDone = false
-	if success and data then
+	if data then
 		crystals.Value = data.Crystals or 0
 		rebirths.Value = data.Rebirths or 0
 		toolPower.Value = data.ToolPower or 1
@@ -148,7 +182,12 @@ players.PlayerAdded:Connect(function(player)
 	player.CharacterAdded:Connect(function(char)
 		applyCharacterStats(player, char)
 	end)
-end)
+end
+
+players.PlayerAdded:Connect(initializePlayer)
+for _, player in ipairs(players:GetPlayers()) do
+	initializePlayer(player)
+end
 
 players.PlayerRemoving:Connect(saveAllData)
 
